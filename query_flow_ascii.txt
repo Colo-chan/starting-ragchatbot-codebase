@@ -1,0 +1,167 @@
+RAG CHATBOT QUERY FLOW - ASCII DIAGRAM
+======================================
+
+┌─────────────┐                                                                          
+│    USER     │  1. Enter query & click send                                            
+│  (Browser)  │                                                                          
+└──────┬──────┘                                                                          
+       │                                                                                 
+       ▼                                                                                 
+┌─────────────┐  2. Disable input, show loading                                         
+│  FRONTEND   │  3. Add user message to chat                                            
+│    (JS)     │  4. POST /api/query {query, session_id}                                 
+└──────┬──────┘                                                                          
+       │                                                                                 
+       ▼                                                                                 
+┌─────────────┐  5. Validate request                                                    
+│   FASTAPI   │  6. Call rag_system.query()                                             
+│   SERVER    │                                                                          
+└──────┬──────┘                                                                          
+       │                                                                                 
+       ▼                                                                                 
+┌─────────────┐  7. Get conversation history ──────────► ┌──────────────┐              
+│     RAG     │                                          │   SESSION    │              
+│   SYSTEM    │  8. Call AI Generator with tools ◄────── │   MANAGER    │              
+└──────┬──────┘                                          └──────────────┘              
+       │                                                                                 
+       ▼                                                                                 
+┌─────────────┐  9. Analyze query                                                       
+│     AI      │  10. Decide: Search needed?                                             
+│ GENERATOR   │                                                                          
+│  (Claude)   │        ┌─────────────────────────────────┐                             
+└──────┬──────┘        │                                 │                             
+       │               │ IF SEARCH NEEDED                │ IF NO SEARCH                
+       ▼               ▼                                 ▼                             
+       ┌───────────────────────────┐            ┌────────────────┐                     
+       │ 11. Request search tool   │            │ Use general    │                     
+       │                           │            │ knowledge      │                     
+       ▼                           │            └────────┬───────┘                     
+┌─────────────┐                    │                     │                             
+│    TOOL     │ 12. Execute       │                     │                             
+│  MANAGER    │     search_tool    │                     │                             
+└──────┬──────┘                    │                     │                             
+       │                           │                     │                             
+       ▼                           │                     │                             
+┌─────────────┐                    │                     │                             
+│   SEARCH    │ 13. Call          │                     │                             
+│    TOOL     │     vector_store   │                     │                             
+└──────┬──────┘                    │                     │                             
+       │                           │                     │                             
+       ▼                           │                     │                             
+┌─────────────┐                    │                     │                             
+│   VECTOR    │ 14. Course        │                     │                             
+│    STORE    │     resolution?    │                     │                             
+└──────┬──────┘                    │                     │                             
+       │                           │                     │                             
+       ├──────────┐                │                     │                             
+       ▼          ▼                │                     │                             
+┌─────────────────────┐            │                     │                             
+│      CHROMADB       │            │                     │                             
+├─────────────────────┤            │                     │                             
+│  course_catalog     │ 15. Match  │                     │                             
+│  (if course name)   │     course │                     │                             
+├─────────────────────┤            │                     │                             
+│  course_content     │ 16. Vector │                     │                             
+│  (main search)      │     search │                     │                             
+└──────────┬──────────┘            │                     │                             
+           │                       │                     │                             
+           └───────────────────────┘                     │                             
+                      │                                  │                             
+                      ▼                                  │                             
+                17. Format results                       │                             
+                18. Track sources                        │                             
+                      │                                  │                             
+                      └──────────────┬───────────────────┘                             
+                                    │                                                  
+                                    ▼                                                  
+                          19. Synthesize response                                      
+                          20. Return to RAG System                                     
+                                    │                                                  
+       ┌────────────────────────────┘                                                  
+       ▼                                                                                
+┌─────────────┐  21. Get sources from Tool Manager                                     
+│     RAG     │  22. Update conversation history                                        
+│   SYSTEM    │  23. Return (response, sources)                                         
+└──────┬──────┘                                                                         
+       │                                                                                
+       ▼                                                                                
+┌─────────────┐  24. Create QueryResponse                                              
+│   FASTAPI   │  25. Return JSON                                                       
+│   SERVER    │      {answer, sources, session_id}                                     
+└──────┬──────┘                                                                         
+       │                                                                                
+       ▼                                                                                
+┌─────────────┐  26. Remove loading animation                                          
+│  FRONTEND   │  27. Render markdown answer                                            
+│    (JS)     │  28. Display collapsible sources                                       
+└──────┬──────┘  29. Re-enable input                                                   
+       │                                                                                
+       ▼                                                                                
+┌─────────────┐  30. View AI response                                                  
+│    USER     │      with sources                                                      
+│  (Browser)  │                                                                         
+└─────────────┘                                                                         
+
+
+LEGEND
+======
+┌─────┐  Component/Service
+│     │  
+└─────┘  
+
+  ▼      Flow direction
+  │      
+──►      Data transfer
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SYSTEM LAYERS
+=============
+
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTEND LAYER                           │
+│  • User Browser                                                 │
+│  • JavaScript (script.js)                                       │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────────┐
+│                    BACKEND ORCHESTRATION                        │
+│  • FastAPI Server (app.py)                                      │
+│  • RAG System (rag_system.py)                                   │
+│  • Session Manager (session_manager.py)                         │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────────┐
+│                      AI & TOOLS LAYER                           │
+│  • AI Generator - Claude (ai_generator.py)                      │
+│  • Tool Manager (search_tools.py)                               │
+│  • Search Tool (search_tools.py)                                │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────────┐
+│                    VECTOR STORAGE LAYER                         │
+│  • Vector Store (vector_store.py)                               │
+│  • ChromaDB with two collections:                               │
+│    - course_catalog (metadata)                                  │
+│    - course_content (chunks)                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY FEATURES
+============
+
+1. TOOL-BASED RAG: Claude decides whether to search or use general knowledge
+2. TWO-STAGE SEARCH: Optional course resolution, then content search  
+3. SESSION PERSISTENCE: Conversation history maintained across queries
+4. SOURCE TRACKING: Transparent attribution of information sources
+5. ASYNC PROCESSING: Loading states while backend processes query
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TYPICAL RESPONSE TIMES
+======================
+• Frontend to API:     ~5ms
+• Vector Search:       ~50-200ms  
+• AI Generation:       ~1-3 seconds
+• Total End-to-End:    ~2-4 seconds
